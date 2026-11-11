@@ -1,9 +1,9 @@
 id = "ds-argus.selection-actions"
 name = "Selection Actions"
-version = "0.1.0"
+version = "0.2.0"
 min_herdr_version = "0.9.5"
-description = "Open selected HTTP(S) URLs or explicitly search selected text with Google."
-platforms = ["macos"]
+description = "Open selected HTTP(S) URLs or explicitly search selected text with your configured provider."
+platforms = ["macos", "linux"]
 
 [[actions]]
 id = "open"
@@ -13,6 +13,6 @@ command = ["python3", "open_url.py", "open"]
 
 [[actions]]
 id = "search"
-title = "Search selected text with Google"
+title = "Search selected text with your configured provider"
 contexts = ["pane"]
 command = ["python3", "open_url.py", "search"]

@@ -1,0 +1,3 @@
+# Copy to the plugin config directory as config.toml. Missing file defaults to Google.
+[search]
+provider = "google" # google | duckduckgo

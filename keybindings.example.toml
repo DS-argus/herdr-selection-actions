@@ -5,9 +5,9 @@ type = "plugin_action"
 command = "ds-argus.selection-actions.open"
 description = "Open selected HTTP(S) URL"
 
-# Explicitly sends the selected text to Google through your browser.
+# Explicitly sends the selected text to the configured search provider through your browser.
 [[keys.command]]
 key = "prefix+shift+s"
 type = "plugin_action"
 command = "ds-argus.selection-actions.search"
-description = "Google selected text"
+description = "Search selected text"

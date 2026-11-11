@@ -1,93 +1,104 @@
 Herdr Selection Actions
 =======================
 
-A community plugin for opening a selected HTTP(S) URL or explicitly searching
-selected text with Google. This is not an official Herdr-maintained plugin.
+A community plugin that opens selected HTTP(S) URLs and searches selected text.
+Not an official Herdr-maintained plugin. No third-party Python packages.
 
 Requirements
 ------------
 
-* macOS, Herdr 0.9.5 or newer, and Python 3.11+ on Herdr's PATH.
-* No third-party Python packages or build step.
-* Only Herdr 0.9.5 has been integration-tested so far.
+* Herdr 0.9.5+ and Python 3.11+ on the server's PATH.
+* macOS: uses /usr/bin/open.
+* Desktop Linux: xdg-utils (xdg-open), a configured browser, and an X11 or
+  Wayland session. Headless servers are rejected with an explanatory notification.
+* Windows is not supported.
 
 Install
 -------
 
-This repository is private. Clone with authenticated GitHub access, then link::
+::
+
+    herdr plugin install DS-argus/herdr-selection-actions
+
+Merge keybindings.example.toml into ~/.config/herdr/config.toml, then run::
+
+    herdr config check && herdr server reload-config
+
+Use your configured Prefix, then Shift+O to open a selected URL, or Shift+S
+ to search selected text. Select in copy mode using Prefix, then [, then v.
+The plugin does not replace copy mode or change the clipboard. Herdr owns the
+copy-mode footer; adding plugin hints there requires a Herdr extension.
+
+Search provider
+---------------
+
+Find your configuration directory::
+
+    herdr plugin config-dir ds-argus.selection-actions
+
+Create config.toml there (see config.example.toml)::
+
+    [search]
+    provider = "duckduckgo"
+
+Supported values are google and duckduckgo. Missing configuration defaults to
+Google. Changes apply on the next search without reloading Herdr. Invalid
+configuration is rejected rather than silently sending your text to another
+provider. URL opening is independent of search configuration.
+
+Privacy and validation
+----------------------
+
+Search sends the selection to the chosen provider only on explicit invocation.
+Do not search secrets or private code. There is no automatic search fallback.
+Search normalizes whitespace, encodes one query parameter, rejects control
+characters, and limits input to 2048 characters.
+
+URL opening permits HTTP(S) only, rejects credentials, invalid hosts/ports,
+control characters, internal whitespace and multiline selections. Ordinary
+surrounding spaces are trimmed. Select the URL itself, not Markdown wrappers.
+Validation does not establish that a website is safe.
+
+Commands receive argument arrays without shell evaluation. The plugin does not
+store selections or include selected URLs in its own error messages. Browser
+history, OS process arguments and Herdr logging are outside that guarantee.
+Errors are English and follow Herdr's global notification settings.
+
+Opening happens on the machine running the Herdr server, not automatically on
+an SSH client's computer. File opening and remote-client browser forwarding are
+not implemented.
+
+Development and tests
+---------------------
+
+::
 
     gh repo clone DS-argus/herdr-selection-actions
     cd herdr-selection-actions
     herdr plugin link "$PWD"
-
-Merge ``keybindings.example.toml`` into ``~/.config/herdr/config.toml``::
-
-    herdr config check && herdr server reload-config
-
-If replacing ``local.open-url``, replace its two existing bindings rather than
-adding duplicate keys. Linking this plugin does not change your configuration
-or remove the old plugin automatically.
-
-Use
----
-
-Enter Herdr copy mode (Prefix, then ``[``), begin selection with ``v``, and select:
-
-* Prefix, then Shift+O: open exactly one HTTP(S) URL.
-* Prefix, then Shift+S: search the selected text with Google.
-
-Prefix means your configured Herdr prefix, not a hardcoded Ctrl+A.
-The copy-mode footer is owned by Herdr and cannot be extended by this plugin.
-The plugin does not remap bare copy-mode keys or replace copy mode.
-
-Security and privacy
---------------------
-
-URL opening accepts only HTTP(S), rejects credentials, invalid hosts/ports,
-control characters, internal whitespace and multiline selections. Only ordinary
-surrounding spaces are trimmed. Select the URL itself, not Markdown wrappers.
-
-Search is a separate explicit action: it normalizes whitespace, URL-encodes one
-query parameter, rejects control characters and limits input to 2048 characters.
-Selected text is sent to Google through your browser only when search is invoked.
-Do not search secrets or private code. There is no automatic search fallback.
-
-The opener receives one argument without shell evaluation. The plugin does not
-read or overwrite your clipboard, store selections, or include selected URLs in
-its own error messages. Browser history, OS process arguments, and Herdr's own
-logging are outside this guarantee.
-
-Opening happens on the Mac running the Herdr server. Remote client browser
-opening, file opening, configurable search providers and footer hints are not
-implemented. Python URL validation does not establish that a website is safe.
-
-Development
------------
-
-Run unit tests::
-
     python3 -m unittest discover -p 'test_*.py' -v
 
-Run the opt-in Herdr/PTY test on macOS::
+The macOS Herdr/PTY integration test is opt-in::
 
     RUN_HERDR_INTEGRATION=1 python3 -m unittest discover -p 'test_*.py' -v
 
-The integration test uses a temporary HOME and named server. It exercises real
-copy-mode selection and both shortcuts, including reusing the same selection.
-Only browser opening is replaced with an argument recorder; it sends no search
-traffic and does not touch your active Herdr session.
+It uses an isolated HOME and server, actual copy-mode keys, and a mocked browser
+opener. It verifies both actions and preservation of the selection. Platform
+unit tests cover macOS and Linux dispatch; a real Linux desktop/browser is not
+exercised by these tests. CI runs unit tests on macOS and Ubuntu.
 
-Update a linked installation with ``git pull --ff-only``. Source changes apply
-on the next action; after manifest changes, run ``herdr plugin link "$PWD"`` again.
-To uninstall, remove the two keybindings and run::
+Updating and removing
+---------------------
 
-    herdr plugin unlink ds-argus.selection-actions
+GitHub-managed installations::
+
+    herdr plugin update ds-argus.selection-actions
+
+Linked development checkouts use git pull --ff-only; relink after manifest
+changes. When replacing local.open-url, replace its bindings rather than adding
+duplicate shortcuts. Remove the two bindings when uninstalling::
+
+    herdr plugin uninstall ds-argus.selection-actions
     herdr config check && herdr server reload-config
 
-Publishing
-----------
-
-A future public repository can support ``herdr plugin install
-DS-argus/herdr-selection-actions --ref <tag>``. Marketplace discovery uses the
-``herdr-plugin`` topic; private repositories are not publicly discoverable.
-No release tag or marketplace registration has been created yet.
+For a linked checkout use plugin unlink instead of plugin uninstall.

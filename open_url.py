@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Open selected HTTP(S) URLs or explicitly search text on the server's Mac."""
+"""Explicit selection actions for macOS and desktop Linux without shell evaluation."""
 import ipaddress
 import json
 import os
@@ -8,26 +8,69 @@ import subprocess
 import sys
 import unicodedata
 from urllib.parse import urlencode, urlsplit
+from pathlib import Path
+import shutil
+import tomllib
+
+SEARCH_PROVIDERS = {
+    "google": "https://www.google.com/search",
+    "duckduckgo": "https://duckduckgo.com/",
+}
 
 
 class SelectionError(ValueError):
     pass
 
+def search_provider():
+    directory = os.environ.get("HERDR_PLUGIN_CONFIG_DIR")
+    if not directory:
+        return "google"
+    try:
+        with (Path(directory) / "config.toml").open("rb") as handle:
+            config = tomllib.load(handle)
+    except FileNotFoundError:
+        return "google"
+    except (OSError, tomllib.TOMLDecodeError):
+        raise SelectionError("Cannot read plugin config.toml. Check syntax and permissions.") from None
+    if set(config) - {"search"}:
+        raise SelectionError("Unknown config section; only [search] is supported.")
+    search = config.get("search", {})
+    if not isinstance(search, dict) or set(search) - {"provider"}:
+        raise SelectionError("Use [search] with a provider setting.")
+    provider = search.get("provider", "google")
+    if not isinstance(provider, str) or provider not in SEARCH_PROVIDERS:
+        raise SelectionError("Search provider must be google or duckduckgo.")
+    return provider
+
+
+def open_browser(url):
+    if sys.platform == "darwin":
+        executable = "/usr/bin/open"
+    elif sys.platform.startswith("linux"):
+        executable = shutil.which("xdg-open")
+        if not executable:
+            raise SelectionError("Install xdg-utils and configure a desktop browser to open links.")
+        if not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+            raise SelectionError("No graphical Linux session. Remote client browser opening is not supported.")
+    else:
+        raise SelectionError("This plugin supports macOS and desktop Linux only.")
+    subprocess.run([executable, url], check=True, timeout=10, capture_output=True)
+
 
 def validate_url(text):
     if not isinstance(text, str) or not text.strip():
-        raise SelectionError("먼저 http:// 또는 https:// 주소 하나를 선택해 주세요.")
+        raise SelectionError("Select one HTTP(S) URL first.")
     # Strip only ordinary surrounding spaces. Do not silently join wrapped lines
     # or let urlsplit discard control characters before validation.
     url = text.strip(" ")
     if len(url) > 8192:
-        raise SelectionError("선택한 주소가 너무 깁니다.")
+        raise SelectionError("The selected URL is too long.")
     if any(char.isspace() or unicodedata.category(char).startswith("C") for char in url):
-        raise SelectionError("공백·줄바꿈 없이 URL 하나만 선택해 주세요.")
+        raise SelectionError("Select one URL without spaces or line breaks.")
     if "\\" in url or any(char in url for char in '<>"'):
-        raise SelectionError("주소 이외의 기호를 제외하고 URL만 선택해 주세요.")
+        raise SelectionError("Select the URL without surrounding markup.")
     if not re.match(r"\Ahttps?://", url, re.IGNORECASE):
-        raise SelectionError("http:// 및 https:// 주소만 열 수 있습니다.")
+        raise SelectionError("Only HTTP(S) URLs are allowed.")
     try:
         parts = urlsplit(url)
         host = parts.hostname
@@ -47,7 +90,7 @@ def validate_url(text):
             ):
                 raise ValueError("invalid host")
     except (ValueError, UnicodeError) as error:
-        raise SelectionError("호스트·포트가 올바른 URL인지 확인해 주세요. 인증정보가 포함된 주소는 열지 않습니다.") from error
+        raise SelectionError("Invalid host, port, or embedded credentials.") from error
     return url
 
 
@@ -55,9 +98,9 @@ def selected_text():
     try:
         context = json.loads(os.environ.get("HERDR_PLUGIN_CONTEXT_JSON", "{}"))
     except json.JSONDecodeError as error:
-        raise SelectionError("Herdr 선택 정보를 읽을 수 없습니다.") from error
+        raise SelectionError("Cannot read the Herdr selection context.") from error
     if not isinstance(context, dict):
-        raise SelectionError("Herdr 선택 정보가 올바르지 않습니다.")
+        raise SelectionError("Invalid Herdr selection context.")
     return context.get("selected_text")
 
 
@@ -68,23 +111,25 @@ def selected_url():
 def open_selected_url():
     url = selected_url()
     # No shell, eval, clipboard, selection mutation, or browser URL extraction.
-    subprocess.run(["/usr/bin/open", url], check=True, timeout=10, capture_output=True)
+    open_browser(url)
 
 
-def search_url(text):
+def search_url(text, provider="google"):
+    if provider not in SEARCH_PROVIDERS:
+        raise SelectionError("Search provider must be google or duckduckgo.")
     if not isinstance(text, str) or not text.strip():
-        raise SelectionError("검색할 텍스트를 먼저 선택해 주세요.")
+        raise SelectionError("Select some text to search first.")
     if len(text) > 2048:
-        raise SelectionError("검색은 2048자 이하로 선택해 주세요.")
+        raise SelectionError("Select no more than 2048 characters to search.")
     if any(unicodedata.category(char).startswith("C") and char not in "\t\n\r" for char in text):
-        raise SelectionError("제어문자가 포함된 선택 내용은 검색하지 않습니다.")
+        raise SelectionError("The selection contains unsupported control characters.")
     query = " ".join(text.split())
-    return "https://www.google.com/search?" + urlencode({"q": query})
+    return SEARCH_PROVIDERS[provider] + "?" + urlencode({"q": query})
 
 
 def search_selected_text():
-    url = search_url(selected_text())
-    subprocess.run(["/usr/bin/open", url], check=True, timeout=10, capture_output=True)
+    url = search_url(selected_text(), search_provider())
+    open_browser(url)
 
 def notify(message):
     print(f"Selection actions: {message}", file=sys.stderr)
@@ -106,13 +151,13 @@ def main(action="open"):
         elif action == "search":
             search_selected_text()
         else:
-            raise SelectionError("알 수 없는 선택 동작입니다.")
+            raise SelectionError("Unknown selection action.")
     except SelectionError as error:
         notify(str(error))
         return 1
     except (OSError, subprocess.SubprocessError):
         # Do not log the selected URL: query strings can contain credentials.
-        notify("브라우저를 열지 못했습니다. macOS 기본 브라우저 설정을 확인해 주세요.")
+        notify("Could not open the browser. Check your desktop browser settings and opener installation.")
         return 1
     return 0
 
