@@ -13,21 +13,65 @@ Requirements
   Wayland session. Headless servers are rejected with an explanatory notification.
 * Windows is not supported.
 
-Install
--------
+Quick start
+-----------
 
-::
+1. Install
+~~~~~~~~~~
+
+.. code-block:: sh
 
     herdr plugin install DS-argus/herdr-selection-actions
 
-Merge keybindings.example.toml into ~/.config/herdr/config.toml, then run::
+Installation registers the actions. **It does not add keyboard shortcuts or
+modify your Herdr configuration.** Python must be available as ``python3``.
+
+2. Add keyboard shortcuts
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Add these entries to ``~/.config/herdr/config.toml`` (or your custom Herdr
+configuration file). Keep existing settings; do not replace the file.
+Choose different keys if these are already assigned.
+
+.. code-block:: toml
+
+    [[keys.command]]
+    key = "prefix+shift+o"
+    type = "plugin_action"
+    command = "ds-argus.selection-actions.open"
+    description = "Open selected HTTP(S) URL"
+
+    [[keys.command]]
+    key = "prefix+shift+s"
+    type = "plugin_action"
+    command = "ds-argus.selection-actions.search"
+    description = "Search selected text"
+
+These bindings enable the shortcuts, not just their help descriptions.
+``prefix`` uses your Herdr prefix (Ctrl+B by default, or your customized key).
+The same snippet is available in ``keybindings.example.toml``.
+
+3. Validate and reload
+~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: sh
 
     herdr config check && herdr server reload-config
 
-Use your configured Prefix, then Shift+O to open a selected URL, or Shift+S
- to search selected text. Select in copy mode using Prefix, then [, then v.
-The plugin does not replace copy mode or change the clipboard. Herdr owns the
-copy-mode footer; adding plugin hints there requires a Herdr extension.
+4. Select text and try it
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+With the default copy-mode binding:
+
+1. Press Prefix, then ``[`` to enter copy mode.
+2. Move to the text, press ``v``, and extend the selection.
+3. Press Prefix, release it, then **Shift+O** to open a selected HTTP(S) URL,
+   or **Shift+S** to search the selected text.
+
+For example, select ``https://example.com`` and use Prefix, then Shift+O.
+Search defaults to Google; choosing another provider below is optional.
+The plugin preserves your clipboard. Herdr owns the copy-mode footer;
+these custom shortcuts are not automatically added to that footer.
 
 Search provider
 ---------------
@@ -36,7 +80,9 @@ Find your configuration directory::
 
     herdr plugin config-dir ds-argus.selection-actions
 
-Create config.toml there (see config.example.toml)::
+The plugin does not create its optional configuration file automatically.
+Create ``config.toml`` in the directory printed above, not in the plugin checkout
+and not in Herdr's main config (see ``config.example.toml``)::
 
     [search]
     provider = "duckduckgo"
